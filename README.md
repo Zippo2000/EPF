@@ -76,7 +76,19 @@ immich:
 
 ### ESP32-C6
 
-Connect the EPD, ESP32-C6, Li-Po battery, and setting button according to the correct wiring configuration. Then, upload the Arduino code from the project directory to the ESP32-C6. On the first boot, connect to the ESP32-C6’s Wi-Fi hotspot(ESP32_ePAPER) to configure Wi-Fi and the Immich server(container's url /w /download domain, eg. http:192.168.100.10:15151/download). You can re-enter the configuration page later by short-circuiting the setting button and rebooting.
+Connect the EPD, ESP32-C6, Li-Po battery, and setting button according to the correct wiring configuration. 
+To run the code follow the following steps:
+
+1. Install and set up Arduino IDE
+2. Connect your ESP32-C6
+3. Rename the Arduino folder from the repo to `epd7in3e`
+4. Open the `epd7in3e.ino` file
+5. Install Arduinojson from the library manager
+6. Click 'Upload'
+7. Connect to the Wifi AP created by the ESP32, named `ESP32_xxxx` using password `123456`
+8. A captive portal shows up allowing to enter your WiFi details and details of the Docker container (e.g. http://192.168.100.10:15151/download)
+
+You can re-enter the configuration page later by short-circuiting the setting button and rebooting.
 
 ## License
 
