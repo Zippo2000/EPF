@@ -6,10 +6,15 @@ This project leverages **Immich** as a service for organizing albums and photos.
 
 ## Features
 
-- **Customizable Update Interval**: Adjust the photo update interval by entering the setting mode via the SETTING PIN on the ESP32 (WIP).
+- **Captive portal**: By long-pressing setup button on the ESP32 when boot up, the device enters setup mode, allowing the Wi-Fi setup page to store up to five SSIDs. This enhances mobility and makes it easier to switch between networks.
+Mostly modifieded from TRMNL WiFiCaptive[https://github.com/usetrmnl/firmware/tree/main/lib/wificaptive]
 - **Fully Automated Photo Management**: Manage photos through Immich without additional manual processes; photos will automatically sync to the frame.
-- **Ultra-low Power Consumption**: As all image processing and quantization are handled by the server, the device only consumes ~16µA during deep sleep, with photo updates completed within 15 seconds.
-- **Customizable Display**: Configure photo orientation, basic color adjustments, album name, server IP, and other settings via the `config/config.yaml` file.
+- **Ultra-low Power Consumption**: As all image processing and quantization are handled by the server, the device only consumes ~16µA during deep sleep, with photo updates completed within 30 seconds.
+- **Customizable Display**: Configure photo orientation, basic color adjustments, album name, and more through the server webpage.
+- **Cython impelementation**: Use Cython to significantly accelerate photo processing, achieving up to a 5x speed boost.
+- **HTTPS supported**: ESP32 now can connect to secured server.
+- **Sleep time impelementation**: ESP32 will enter deep sleep during the specified sleep period.
+- **One button**: When the ESP32 is in deep sleep, a short press of the setting button will wake it up and restart the process, while a long press(~5s) of the setting button during boot will enter setting mode.
 
 ## Table of Contents
 
@@ -23,7 +28,7 @@ This project leverages **Immich** as a service for organizing albums and photos.
 - [7.3-inch E Ink Spectra 6 (E6) Full Color E-Paper Display Module + HAT](https://www.waveshare.com/7.3inch-e-paper-hat-e.htm)
 - Picture frame: A standard picture frame that accommodates the e-paper frame.
 - Li-Po battery with PH2.0 header
-- Simple button * 2 for reset and setting
+- Simple button for wake and setting
 
 ## Installation
 
@@ -50,14 +55,14 @@ docker pull jwchen119/epf
 
 ### Run the Container
 
-Create a container from the image. Don’t forget to edit your configuration path and Immich API key.
+Create a container from the image. Don’t forget to edit your Immich API key.
 
 ```bash
-$ docker run --name epf -e IMMICH-API-KEY='<replace-your-immich-api-key>' -v <replace-to-your-path>:/app/config -d -p <replace-port>:5000 jwchen119/epf
+$ docker run --name epf -e IMMICH-API-KEY='<replace-your-immich-api-key>' -d -p <replace-port>:5000 jwchen119/epf
 ```
 
-### Configure `config.yaml`
-
+### Configure `config.yaml` (no longer needed, configure the settings directly from webpage)
+<details>
 Below is an example of a configured `config.yaml` file:
 
 ```yaml
@@ -73,6 +78,7 @@ immich:
   # Contrast level using PIL's ImageEnhance.Contrast (1.0 = original level)
   contrast: 1.2
 ```
+</details>
 
 ### ESP32-C6
 
@@ -83,12 +89,15 @@ To run the code follow the following steps:
 2. Connect your ESP32-C6
 3. Rename the Arduino folder from the repo to `epd7in3e`
 4. Open the `epd7in3e.ino` file
-5. Install Arduinojson from the library manager
+5. Install following libraries from Arduino library manager:
+  5-1. Arduinojson
+  5-2. Async TCP
+  5-3. ESP Async Web Server
 6. Click 'Upload'
-7. Connect to the Wifi AP created by the ESP32, named `ESP32_xxxx` using password `123456`
-8. A captive portal shows up allowing to enter your WiFi details and details of the Docker container (e.g. http://192.168.100.10:15151/download)
+7. Connect to the Wifi AP created by the ESP32, named `ESP32_ePAPER`
+8. A captive portal shows up allowing to enter your WiFi details and details of the Docker container (e.g. http://192.168.100.10:15151)
 
-You can re-enter the configuration page later by short-circuiting the setting button and rebooting.
+You can re-enter the configuration page later by short-circuiting the setting button at least 5 second while rebooting.
 
 ## License
 

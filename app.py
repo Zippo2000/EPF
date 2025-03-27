@@ -1,4 +1,5 @@
-from flask import Flask, jsonify, send_file
+#-*- coding:utf8 -*-
+from flask import Flask, jsonify, send_file, render_template, request, redirect, url_for
 import yaml
 import requests
 import os
@@ -8,21 +9,32 @@ import rawpy
 import numpy as np
 from PIL import Image,ImageDraw,ImageFont,ImageEnhance,ImageOps
 from pillow_heif import register_heif_opener
-from datetime import datetime
+from datetime import datetime, timedelta
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import threading
+from cpy import  convert_image, load_scaled
+import ntplib
+import time
 
 app = Flask(__name__)
 
 
 DEFAULT_CONFIG = {
     'immich': {
-        'url': 'http://localhost',
-        'album': 'default_album',
-        'rotation': 0,
-        'enhanced': 1.0,
-        'contrast': 1.0,
+        'url': 'http://192.168.1.10',   # Immich server URL ("localhost" is forbidden)
+        'album': 'default_album',       # Album name
+        'rotation': 270,                # 0/90/180/270
+        'enhanced': 1.3,                # From 0.0 .. 1.0
+        'contrast': 0.9,                # From 0.0 .. 1.0
+        'strength': 0.8,                # From 0.0 .. 1.0
+        'display_mode': 'fill',          # Add display mode setting (fit/fill)
+        'image_order': 'random',        # Add image display order setting (random/newest)
+        'sleep_start_hour': 23,         # Sleep start time 23:00 (11:00 PM)
+        'sleep_start_minute': 0,        # Sleep start time 23:00 (11:00 PM)
+        'sleep_end_hour': 6,            # Sleep end time 6:00 (6:00 AM)
+        'sleep_end_minute': 0,          # Sleep end time 6:00 (6:00 AM)
+        'wakeup_interval': 60,          # Default 60 minutes (1 hour)
     }
 }
 
@@ -34,6 +46,13 @@ albumname = DEFAULT_CONFIG['immich']['album']
 rotationAngle = DEFAULT_CONFIG['immich']['rotation']
 img_enhanced = DEFAULT_CONFIG['immich']['enhanced']
 img_contrast = DEFAULT_CONFIG['immich']['contrast']
+strength = DEFAULT_CONFIG['immich']['strength']
+display_mode = DEFAULT_CONFIG['immich']['display_mode']
+image_order = DEFAULT_CONFIG['immich']['image_order']
+sleep_start_hour = DEFAULT_CONFIG['immich']['sleep_start_hour']
+sleep_start_minute = DEFAULT_CONFIG['immich']['sleep_start_minute']
+sleep_end_hour = DEFAULT_CONFIG['immich']['sleep_end_hour']
+sleep_end_minute = DEFAULT_CONFIG['immich']['sleep_end_minute']
 
 # Retrieve environment variables with error handling
 apikey = os.getenv('IMMICH_API_KEY')
@@ -59,7 +78,7 @@ ALLOWED_EXTENSIONS = {'.jpeg', '.raw', '.jpg', '.bmp', '.dng', '.heic', '.arw', 
 os.makedirs(photodir, exist_ok=True)
 register_heif_opener()
 
-
+# Palltte only for WaveShare 7.5inch Spectra-E6 e-Paper
 palette = [
     (0, 0, 0),
     (255, 255, 255),
@@ -68,6 +87,9 @@ palette = [
     (100, 64, 255),
     (67, 138, 28)
 ]
+
+last_battery_voltage = 0
+last_battery_update = 0
 
 def load_downloaded_images():
     """ Load downloaded image ID from tracking.txt """
@@ -158,6 +180,7 @@ def scale_img_in_memory(image, target_width=800, target_height=480, bg_color=(25
 
     # Update the angle
     rotation = rotationAngle
+
     # Get data from EXIF
     try:
         exif = image._getexif()
@@ -174,30 +197,12 @@ def scale_img_in_memory(image, target_width=800, target_height=480, bg_color=(25
 
     # Read correct photo orientation from EXIF
     image = ImageOps.exif_transpose(image)
-    # Rotate image
-    if rotation in [90, 180, 270]:
-        image = image.rotate(rotation, expand=True)
-    elif rotation not in [0]:
-        raise ValueError("Rotation must be 0, 90, 180, or 270 degrees")
+    # output_img = Image.new('RGB', (target_width, target_height), bg_color)
 
-    width, height = image.size
-
-    # Calculate scaling ratio
-    ratio = min(target_width/width, target_height/height)
-    new_width = int(width * ratio)
-    new_height = int(height * ratio)
-
-    # Resize the image
-    ANTIALIAS = Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS
-    img = image.resize((new_width, new_height), ANTIALIAS)
-
-    # Create the background of the image
-    output_img = Image.new('RGB', (target_width, target_height), bg_color)
-
-    # calculate position
-    paste_x = (target_width - new_width) // 2
-    paste_y = (target_height - new_height) // 2
-
+    # # calculate position
+    # paste_x = (target_width - new_width) // 2
+    # paste_y = (target_height - new_height) // 2
+    img = load_scaled(image, rotation, display_mode)
     # Enhance color and contrast
     enhanced_img = ImageEnhance.Color(img).enhance(img_enhanced)
     enhanced_img = ImageEnhance.Contrast(enhanced_img).enhance(img_contrast)
@@ -226,12 +231,15 @@ def scale_img_in_memory(image, target_width=800, target_height=480, bg_color=(25
     pal_image.putpalette(palette)
     
     # Quantize image
-    quantized_img = enhanced_img.convert("RGB").quantize(
-        palette=pal_image, 
-        dither=Image.Dither.FLOYDSTEINBERG
-    ).convert("RGB")
+    # output_img = enhanced_img.convert("RGB").quantize(
+    #     palette=pal_image,
+    #     dither=Image.Dither.FLOYDSTEINBERG
+    # ).convert("RGB")
     
-    output_img.paste(quantized_img, (paste_x, paste_y))
+    output_img = convert_image(enhanced_img, dithering_strength=strength)
+    output_img = Image.fromarray(output_img, mode="RGB")
+    
+    # output_img.paste(quantized_img, (paste_x, paste_y))
     
     # Add date if available
     if date_time:
@@ -335,18 +343,13 @@ def scale_img_in_memory(image, target_width=800, target_height=480, bg_color=(25
                     # 270 degree rotation, display in bottom left
                     output_img.paste(rotated_text, (position[1], position[0]))
                 
-        # Modify function call
+        # Drawing the text on forground (WIP)
         # draw_text_with_background(draw, formatted_time, font)
-
-        
-        # Call improved function
-        # draw_text_with_background(draw, formatted_time, font, target_width, target_height)
     
     # Save image into ram
     img_io = io.BytesIO()
     output_img.save(img_io, 'BMP')
     img_io.seek(0)
-    
     return img_io
 
 def convert_to_c_code_in_memory(image_data):
@@ -406,30 +409,58 @@ class ConfigFileHandler(FileSystemEventHandler):
     def __init__(self, config_path, config_update_callback):
         self.config_path = config_path
         self.config_update_callback = config_update_callback
+        
+        # Ensure directory and config file exist
+        self.ensure_config_exists()
+        
+        # Load configuration
         self.config = self.load_config()
-
+    
+    def ensure_config_exists(self):
+        """ 
+        Ensure the config directory and config file exist. 
+        Create them if they don't exist.
+        """
+        # Get the directory path
+        config_dir = os.path.dirname(self.config_path)
+        
+        # Create the directory if it doesn't exist
+        if not os.path.exists(config_dir):
+            try:
+                os.makedirs(config_dir)
+                print(f"Created config directory: {config_dir}")
+            except Exception as e:
+                print(f"Error creating config directory: {e}")
+        
+        # Create the config file if it doesn't exist
+        if not os.path.exists(self.config_path):
+            try:
+                with open(self.config_path, 'w') as file:
+                    yaml.dump(DEFAULT_CONFIG, file)
+                print(f"Created default configuration file: {self.config_path}")
+            except Exception as e:
+                print(f"Error creating config file: {e}")
+    
     def on_modified(self, event):
         if event.src_path == self.config_path:
             print("File modification detected, reloading configuration...")
             new_config = self.load_config()
             # Use callback function to update configuration
             self.config_update_callback(new_config)
-
+    
     def load_config(self):
         """ Load config """
-        if not os.path.exists(self.config_path):
-            # If file does not exist, create default configuration file
-            print(f"File {self.config_path} does not exist, creating default configuration file...")
-            with open(self.config_path, 'w') as file:
-                yaml.dump(DEFAULT_CONFIG, file)
-            print(f"Default configuration file created: {self.config_path}")
-        
-        with open(self.config_path, 'r') as file:
-            return yaml.safe_load(file)
+        try:
+            with open(self.config_path, 'r') as file:
+                return yaml.safe_load(file)
+        except Exception as e:
+            print(f"Error reading config file: {e}")
+            # Fallback to default configuration if reading fails
+            return DEFAULT_CONFIG
     
 def update_app_config(new_config):
     """ Update global configuration and Flask application configuration """
-    global current_config, url, albumname, rotationAngle, img_enhanced, img_contrast
+    global current_config, url, albumname, rotationAngle, img_enhanced, img_contrast, strength, display_mode, image_order, sleep_start_hour, sleep_end_hour, sleep_start_minute, sleep_end_minute
     
     current_config = new_config
     
@@ -439,6 +470,14 @@ def update_app_config(new_config):
     app.config['IMMICH_ROTATION'] = new_config['immich']['rotation']
     app.config['IMMICH_ENHANCED'] = new_config['immich']['enhanced']
     app.config['IMMICH_CONTRAST'] = new_config['immich']['contrast']
+    app.config['IMMICH_STRENGH'] = new_config['immich']['strength']
+    app.config['IMMICH_DISPLAY_MODE'] = new_config['immich']['display_mode']
+    app.config['IMMICH_IMAGE_ORDER'] = new_config['immich']['image_order']
+    app.config['IMMICH_SLEEP_START_HOUR'] = new_config['immich']['sleep_start_hour']
+    app.config['IMMICH_SLEEP_END_HOUR'] = new_config['immich']['sleep_end_hour']
+    app.config['IMMICH_SLEEP_START_MINUTE'] = new_config['immich']['sleep_start_minute']
+    app.config['IMMICH_SLEEP_END_MINUTE'] = new_config['immich']['sleep_end_minute']
+
     
     # Update global variables
     url = new_config['immich']['url']
@@ -446,22 +485,170 @@ def update_app_config(new_config):
     rotationAngle = new_config['immich']['rotation']
     img_enhanced = new_config['immich']['enhanced']
     img_contrast = new_config['immich']['contrast']
+    strength = new_config['immich']['strength']
+    display_mode = new_config['immich']['display_mode']
+    image_order = new_config['immich']['image_order']
+    sleep_start_hour = new_config['immich']['sleep_start_hour']
+    sleep_end_hour = new_config['immich']['sleep_end_hour']
+    sleep_start_minute = new_config['immich']['sleep_start_minute']
+    sleep_end_minute = new_config['immich']['sleep_end_minute']
     
-    print(f"Configuration updated: URL = {url}, Album = {albumname}, angle = {rotationAngle}, enhance = {img_enhanced}, contrast = {img_contrast}")
-    
+    print(f"Configuration updated: URL = {url}, Album = {albumname}, angle = {rotationAngle}, enhance = {img_enhanced}, contrast = {img_contrast}, strength = {strength}, display_mode = {display_mode}, image_order = {image_order}")
+
 def start_config_watcher(config_path):
     """ Start configuration file monitoring """
     config_handler = ConfigFileHandler(config_path, update_app_config)
     
     # Start monitoring file changes
     observer = Observer()
-    observer.schedule(config_handler, path=config_path, recursive=False)
+    observer.schedule(config_handler, path=os.path.dirname(config_path), recursive=False)
     observer.start()
     
     return observer
 
+# Add lithium battery voltage table (voltage: battery percentage)
+BATTERY_LEVELS = {
+    4200: 100,
+    4150: 95,
+    4110: 90,
+    4080: 85,
+    4020: 80,
+    3980: 75,
+    3950: 70,
+    3910: 65,
+    3870: 60,
+    3850: 55,
+    3840: 50,
+    3820: 45,
+    3800: 40,
+    3790: 35,
+    3770: 30,
+    3750: 25,
+    3730: 20,
+    3710: 15,
+    3690: 10,
+    3610: 5,
+    3400: 0
+}
+
+def calculate_battery_percentage(voltage):
+    """
+    Calculate actual battery percentage based on battery voltage
+    Use piecewise linear interpolation for more accurate battery estimation
+    """
+    if voltage >= 4200:
+        return 100
+    if voltage <= 3400:
+        return 0
+    
+    # Find the two closest reference points
+    voltages = list(BATTERY_LEVELS.keys())
+    for i in range(len(voltages)-1):
+        if voltages[i] >= voltage >= voltages[i+1]:
+            v1, v2 = voltages[i], voltages[i+1]
+            p1, p2 = BATTERY_LEVELS[v1], BATTERY_LEVELS[v2]
+            # Linear interpolation
+            percentage = p2 + (voltage - v2) * (p1 - p2) / (v1 - v2)
+            return round(percentage, 1)
+    
+    return 0
+
+@app.route('/setting', methods=['GET', 'POST'])
+def settings():
+    global current_config, last_battery_voltage, last_battery_update
+    config_path = '/config/config.yaml'
+    
+    # Use stored battery voltage (if updated within the last hour)
+    current_time = time.time()
+    if current_time - last_battery_update < 3600:  # 1 hour = 3600 seconds
+        battery_voltage = last_battery_voltage
+    else:
+        battery_voltage = 0
+    
+    # Use new battery calculation method
+    battery_percentage = calculate_battery_percentage(battery_voltage) if battery_voltage > 0 else 0
+    
+    if battery_voltage > 0:
+        print(f"Battery: {battery_voltage:.0f}mV ({battery_percentage:.1f}%)")
+    else:
+        print("No battery information available")
+
+    if request.method == 'POST':
+        # Collect form data
+        new_config = {
+            'immich': {
+                'url': request.form.get('url', current_config['immich']['url']),
+                'album': request.form.get('album', current_config['immich']['album']),
+                'rotation': int(request.form.get('rotation', current_config['immich']['rotation'])),
+                'enhanced': float(request.form.get('enhanced', current_config['immich']['enhanced'])),
+                'contrast': float(request.form.get('contrast', current_config['immich']['contrast'])),
+                'strength': float(request.form.get('strength', current_config['immich']['strength'])),
+                'display_mode': request.form.get('display_mode', current_config['immich']['display_mode']),
+                'image_order': request.form.get('image_order', current_config['immich']['image_order']),
+                'sleep_start_hour': int(request.form.get('sleep_start_hour', current_config['immich']['sleep_start_hour'])),
+                'sleep_start_minute': int(request.form.get('sleep_start_minute', current_config['immich']['sleep_start_minute'])),
+                'sleep_end_hour': int(request.form.get('sleep_end_hour', current_config['immich']['sleep_end_hour'])),
+                'sleep_end_minute': int(request.form.get('sleep_end_minute', current_config['immich']['sleep_end_minute'])),
+                'wakeup_interval': int(request.form.get('wakeup_interval', current_config['immich']['wakeup_interval'])),
+            }
+        }
+        
+        # Validate rotation values
+        if new_config['immich']['rotation'] not in [0, 90, 180, 270]:
+            return render_template('settings.html', 
+                                   config=current_config, 
+                                   error="Rotation must be 0, 90, 180, or 270 degrees")
+        
+        try:
+            # Write to config file
+            with open(config_path, 'w') as file:
+                yaml.safe_dump(new_config, file)
+            
+            # Update current configuration
+            update_app_config(new_config)
+            
+            return redirect(url_for('settings'))
+        
+        except Exception as e:
+            return render_template('settings.html', 
+                                   config=current_config, 
+                                   error=f"Error saving configuration: {str(e)}")
+    
+    return render_template('settings.html', 
+                         config=current_config, 
+                         battery_voltage=battery_voltage,
+                         battery_percentage=battery_percentage)
+
+@app.route('/')
+def index():
+    return redirect(url_for('settings'))
+
+def run_daily_ntp_sync():
+    """Daily NTP sync task"""
+    while True:
+        try:
+            # Get current time
+            now = datetime.now()
+            # Calculate next 4:00 AM
+            next_sync = now.replace(hour=4, minute=11, second=0, microsecond=0)
+            if now >= next_sync:
+                next_sync = next_sync + timedelta(days=1)
+            
+            # Calculate wait time
+            wait_seconds = (next_sync - now).total_seconds()
+            time.sleep(wait_seconds)
+            
+            # Perform NTP sync
+            synced_time = sync_time_with_ntp()
+            print(f"Daily NTP sync completed at {synced_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+        except Exception as e:
+            print(f"Error in daily NTP sync: {e}")
+            time.sleep(3600)  # Retry after 1 hour if error occurs
+
 def main():
-    config_path = '/app/config/config.yaml'
+    config_path = '/config/config.yaml'
+    
     # Start configuration file monitoring
     config_observer = start_config_watcher(config_path)
     
@@ -469,6 +656,10 @@ def main():
         # Initialize configuration
         initial_config = ConfigFileHandler(config_path, update_app_config).config
         update_app_config(initial_config)
+        
+        # Start daily NTP sync thread
+        ntp_sync_thread = threading.Thread(target=run_daily_ntp_sync, daemon=True)
+        ntp_sync_thread.start()
         
         # Run Flask application in a separate thread
         app.run(host='0.0.0.0', port=5000, use_reloader=False)
@@ -479,11 +670,23 @@ def main():
 @app.route('/download', methods=['GET'])
 def process_and_download():
     
-    global url, albumname
+    global url, albumname, last_battery_voltage, last_battery_update
+    
+    # Update battery information when received
+    try:
+        battery_voltage = float(request.headers.get('batteryCap', '0'))
+        if battery_voltage > 0:
+            last_battery_voltage = battery_voltage
+            last_battery_update = time.time()
+    except (TypeError, ValueError):
+        pass
     
     # Use current global configuration
     current_url = url
     current_albumname = albumname
+    
+    battery_voltage = request.headers.get('batteryCap', 'Unknown')
+    # print(f"Battery: {battery_voltage} mV")
     
     try:
         # Check if url and albumname are valid
@@ -513,22 +716,39 @@ def process_and_download():
         if 'assets' not in data or not data['assets']:
             return jsonify({"error": "No images found in album"}), 404
 
-        # Filter out already downloaded images
-        remaining_images = [
-            img for img in data['assets'] 
-            if img['id'] not in downloaded_images
-        ]
+        # Get display order setting
+        image_order = current_config['immich']['image_order']
 
-        # If all images are downloaded, reset tracking file
-        if not remaining_images:
-            reset_tracking_file()
-            remaining_images = data['assets']
+        if image_order == 'newest':
+            # Check if new photos have been added
+            latest_photo = max(data['assets'], key=lambda x: x.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00'))
+            latest_id = latest_photo['id']
+            
+            # Reset tracking file if it's empty or latest photo is not in downloaded list
+            downloaded_images = load_downloaded_images()
+            if not downloaded_images or latest_id not in downloaded_images:
+                reset_tracking_file()
+                # Sort photos by capture time
+                sorted_assets = sorted(data['assets'], 
+                                    key=lambda x: x.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00'),
+                                    reverse=True)
+                remaining_images = sorted_assets
+            else:
+                # Sort undownloaded photos by time
+                remaining_images = [img for img in data['assets'] if img['id'] not in downloaded_images]
+                remaining_images.sort(key=lambda x: x.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00'),
+                                   reverse=True)
+        else:  # random order
+            remaining_images = [img for img in data['assets'] if img['id'] not in downloaded_images]
+            if not remaining_images:
+                reset_tracking_file()
+                remaining_images = data['assets']
 
-        # Randomly select an undownloaded image
-        selected_image = random.choice(remaining_images)
+        # Select photo
+        selected_image = remaining_images[0] if image_order == 'newest' else random.choice(remaining_images)
         asset_id = selected_image['id']
         
-        # Record downloaded images
+        # Record downloaded image
         save_downloaded_image(asset_id)
 
         # Download image to memory
@@ -566,7 +786,125 @@ def process_and_download():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route('/sleep', methods=['GET'])
+def get_sleep_duration():
+    # Use system time instead of NTP sync
+    current_time = datetime.now()
+    
+    # Get wake interval from config (in minutes)
+    interval = int(current_config['immich']['wakeup_interval'])
+    
+    def calculate_next_interval_time(base_time, intervals=1):
+        # Calculate next interval time
+        total_minutes = base_time.hour * 60 + base_time.minute
+        next_total_minutes = interval * ((total_minutes // interval) + intervals)
+        
+        # Handle case where next_total_minutes exceeds 24 hours
+        next_total_minutes = next_total_minutes % (24 * 60)  # Wrap around to next day
+        
+        # Create next wake time
+        next_time = base_time.replace(
+            hour=next_total_minutes // 60,
+            minute=next_total_minutes % 60,
+            second=0,
+            microsecond=0
+        )
+        
+        # If we crossed into the next day, add a day
+        if next_time < base_time:
+            next_time = next_time + timedelta(days=1)
+        
+        return next_time
+    
+    # Get initial next wake time
+    next_wakeup = calculate_next_interval_time(current_time)
+    
+    # Check if next wake time is in sleep period
+    sleep_start = current_time.replace(
+        hour=current_config['immich']['sleep_start_hour'],
+        minute=current_config['immich']['sleep_start_minute'],
+        second=0,
+        microsecond=0
+    )
+    
+    sleep_end = current_time.replace(
+        hour=current_config['immich']['sleep_end_hour'],
+        minute=current_config['immich']['sleep_end_minute'],
+        second=0,
+        microsecond=0
+    )
+
+    # Adjust sleep end time if it's less than start time (crosses midnight)
+    if sleep_end < sleep_start:
+        if current_time >= sleep_start:
+            sleep_end = sleep_end + timedelta(days=1)
+        elif current_time < sleep_end:
+            sleep_start = sleep_start - timedelta(days=1)
+
+    # If next wake time is in sleep period, set to sleep end time
+    if sleep_start <= next_wakeup < sleep_end:
+        next_wakeup = sleep_end
+
+    # Calculate sleep duration in milliseconds
+    sleep_ms = int((next_wakeup - current_time).total_seconds() * 1000)
+    
+    # If sleep duration is less than 10 minutes, calculate next interval
+    if sleep_ms < 600000:  # 10 minutes = 600,000 milliseconds
+        next_wakeup = calculate_next_interval_time(current_time, intervals=2)
+        # Check again for sleep period
+        if sleep_start <= next_wakeup < sleep_end:
+            next_wakeup = sleep_end
+        sleep_ms = int((next_wakeup - current_time).total_seconds() * 1000)
+    
+    return jsonify({
+        "current_time": current_time.strftime("%Y-%m-%d %H:%M:%S"),
+        "next_wakeup": next_wakeup.strftime("%Y-%m-%d %H:%M:%S"),
+        "sleep_duration": sleep_ms
+    })
+
+def sync_time_with_ntp():
+    """Sync time with NTP server"""
+    try:
+        ntp_client = ntplib.NTPClient()
+        response = ntp_client.request('pool.ntp.org', timeout=5)
+        return datetime.fromtimestamp(response.tx_time)
+    except Exception as e:
+        print(f"NTP sync failed: {e}")
+        return datetime.now()
+
+# def calculate_next_wakeup(current_time, wakeup_hour, wakeup_minute):
+#     """Calculate next wakeup time, considering sleep time range"""
+#     # Get sleep time range
+#     sleep_start = current_time.replace(
+#         hour=current_config['immich']['sleep_start_hour'],
+#         minute=current_config['immich']['sleep_start_minute'],
+#         second=0,
+#         microsecond=0
+#     )
+    
+#     sleep_end = current_time.replace(
+#         hour=current_config['immich']['sleep_end_hour'],
+#         minute=current_config['immich']['sleep_end_minute'],
+#         second=0,
+#         microsecond=0
+#     )
+
+#     # If current time is before sleep end time but after midnight
+#     if sleep_end < sleep_start and current_time < sleep_end:
+#         sleep_start = sleep_start - timedelta(days=1)
+#     # If current time is after sleep start time
+#     elif sleep_end < sleep_start and current_time >= sleep_start:
+#         sleep_end = sleep_end + timedelta(days=1)
+    
+#     # Calculate next wake up time
+#     interval_minutes = int(current_config['immich']['wakeup_interval'])
+#     next_wakeup = current_time + timedelta(minutes=interval_minutes)
+    
+#     # Adjust next wake up time if it falls within sleep period
+#     if sleep_start <= next_wakeup < sleep_end:
+#         next_wakeup = sleep_end
+    
+#     return next_wakeup
 
 if __name__ == '__main__':
     main()
-    
