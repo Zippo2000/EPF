@@ -35,22 +35,14 @@ Mostly modifieded from TRMNL WiFiCaptive[https://github.com/usetrmnl/firmware/tr
 ### Clone the Repository
 
 ```bash
-$ git clone https://github.com/jwchen119/epf.git
+$ git clone https://github.com/Zippo2000/EPF.git
 ```
 
 ### Manually Build Docker Image
 
 ```bash
-$ git clone https://github.com/jwchen119/epf.git
-$ docker build -t jwchen119/epf .
-```
-
-### Download Precompiled Docker Image
-
-If you prefer not to build the image yourself, you can download the precompiled image from [DockerHub](https://hub.docker.com/r/jwchen119/epf):
-
-```bash
-docker pull jwchen119/epf
+$ git clone https://github.com/Zippo2000/EPF.git
+$ docker build -t Zippo2000/epf .
 ```
 
 ### Run the Container
@@ -58,7 +50,7 @@ docker pull jwchen119/epf
 Create a container from the image. Don’t forget to edit your Immich API key.
 
 ```bash
-$ docker run --name epf -e IMMICH-API-KEY='<replace-your-immich-api-key>' -d -p <replace-port>:5000 jwchen119/epf
+$ docker run --name epf -e IMMICH-API-KEY='<replace-your-immich-api-key>' -d -p <replace-port>:5000 Zippo2000/epf
 ```
 
 ### Configure `config.yaml` (no longer needed, configure the settings directly from webpage)
