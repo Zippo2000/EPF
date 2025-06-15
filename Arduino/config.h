@@ -24,7 +24,8 @@
 #define WAKEUP_LEVEL ESP_GPIO_WAKEUP_GPIO_LOW // Wake up on low level
 
 // Buffer configuration
-#define BUFFER_SIZE 131072U // Buffer size for image processing
+// #define BUFFER_SIZE 131072U // Buffer size for image processing - ESP32-C6
+#define BUFFER_SIZE 96000U // Buffer size for image processing - ESP32-E
 
 #define SERVER_BASE_URL "http://server.ip:15001"
 #define PREFERENCES_SLEEP_TIME_KEY "refresh_rate"

@@ -1,4 +1,4 @@
-# E-paper ESP32 Frame
+# E-paper ESP32 Frame - ESP32-E
 
 - **This project is currently a Work in Progress (WIP)!**
 
@@ -24,11 +24,11 @@ Mostly modifieded from TRMNL WiFiCaptive[https://github.com/usetrmnl/firmware/tr
 
 ## Components
 
-- [FireBeetle 2 ESP32-C6](https://www.dfrobot.com/product-2771.html)
+- [FireBeetle 2 ESP32-E](https://wiki.dfrobot.com/FireBeetle_Board_ESP32_E_SKU_DFR0654)
 - [7.3-inch E Ink Spectra 6 (E6) Full Color E-Paper Display Module + HAT](https://www.waveshare.com/7.3inch-e-paper-hat-e.htm)
 - Picture frame: A standard picture frame that accommodates the e-paper frame.
 - Li-Po battery with PH2.0 header
-- Simple button for wake and setting
+- Simple button for wake and setting or use integrated button on ESP32-E
 
 ## Installation
 
@@ -80,13 +80,13 @@ immich:
 ```
 </details>
 
-### ESP32-C6
+### ESP32
 
-Connect the EPD, ESP32-C6, Li-Po battery, and setting button according to the correct wiring configuration. 
+Connect the EPD, ESP32, Li-Po battery, and setting button according to the correct wiring configuration. 
 To run the code follow the following steps:
 
 1. Install and set up Arduino IDE
-2. Connect your ESP32-C6
+2. Connect your ESP32
 3. Rename the Arduino folder from the repo to `epd7in3e`
 4. Open the `epd7in3e.ino` file
 5. Install following libraries from Arduino library manager:

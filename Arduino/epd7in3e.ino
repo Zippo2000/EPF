@@ -14,16 +14,16 @@
 #include <filesystem.h>
 
 /* Pin Layout Description
-DRIVER BOARD  <>  FireBeetle ESP32-C6
-BUSY          <>  18  // E-paper busy signal input
-RST           <>  14  // E-paper reset control
-DC            <>  8   // Data/Command control
-CS            <>  1   // Chip select control
-SCLK          <>  23  // SPI clock
-DIN           <>  22  // SPI data input
+DRIVER BOARD  <>  FireBeetle ESP32-E
+BUSY          <>  25  // E-paper busy signal input
+RST           <>  4  // E-paper reset control
+DC            <>  13   // Data/Command control
+CS            <>  14   // Chip select control
+SCLK          <>  18  // SPI clock
+DIN           <>  23  // SPI data input
 GND           <>  GND // Ground
 VCC           <>  3V3 // Power supply
-SETTING       <>  2  // Configuration mode trigger pin
+SETTING       <>  27  // Configuration mode trigger pin
 */
 
 Preferences preferences;
@@ -83,7 +83,7 @@ private:
     int plusV = 0;
     for (int i = 0; i < 50; i++)
     {
-      plusV += analogReadMilliVolts(0);
+      plusV += analogReadMilliVolts(34);
       delay(5);
     }
     int batteryVoltage = (plusV / 50) * 2;
