@@ -158,14 +158,14 @@ bool WifiCaptive::startPortal()
     WiFi.softAP(WIFI_SSID, WIFI_PASSWORD, random(1, 11), 0, MAX_CLIENTS);
     delay(50);
 
-    // Disable AMPDU RX on the ESP32 WiFi to fix a bug on Android
-    esp_wifi_stop();
-    esp_wifi_deinit();
-    wifi_init_config_t my_config = WIFI_INIT_CONFIG_DEFAULT();
-    my_config.ampdu_rx_enable = false;
-    esp_wifi_init(&my_config);
-    esp_wifi_start();
-    vTaskDelay(100 / portTICK_PERIOD_MS); // Add a small delay
+    // Disable AMPDU RX on the ESP32 WiFi to fix a bug on Android - disabled because of error with ESP32-E
+    // esp_wifi_stop();
+    // esp_wifi_deinit();
+    // wifi_init_config_t my_config = WIFI_INIT_CONFIG_DEFAULT();
+    // my_config.ampdu_rx_enable = false;
+    // esp_wifi_init(&my_config);
+    // esp_wifi_start();
+    // vTaskDelay(100 / portTICK_PERIOD_MS); // Add a small delay
 
     // configure DSN and WEB server
     setUpDNSServer(*_dnsServer, localIP);
