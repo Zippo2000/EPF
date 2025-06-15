@@ -14,6 +14,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import threading
 from cpy import  convert_image, load_scaled
+from cpy import  convert_image_atkinson, load_scaled
 import ntplib
 import time
 
@@ -236,7 +237,8 @@ def scale_img_in_memory(image, target_width=800, target_height=480, bg_color=(25
     #     dither=Image.Dither.FLOYDSTEINBERG
     # ).convert("RGB")
     
-    output_img = convert_image(enhanced_img, dithering_strength=strength)
+    # output_img = convert_image(enhanced_img, dithering_strength=strength)
+    output_img = convert_image_atkinson(enhanced_img, dithering_strength=strength)
     output_img = Image.fromarray(output_img, mode="RGB")
     
     # output_img.paste(quantized_img, (paste_x, paste_y))
