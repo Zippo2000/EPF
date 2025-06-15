@@ -9,6 +9,7 @@ This project leverages **Immich** as a service for organizing albums and photos.
 - **Captive portal**: By long-pressing setup button on the ESP32 when boot up, the device enters setup mode, allowing the Wi-Fi setup page to store up to five SSIDs. This enhances mobility and makes it easier to switch between networks.
 Mostly modifieded from TRMNL WiFiCaptive[https://github.com/usetrmnl/firmware/tree/main/lib/wificaptive]
 - **Fully Automated Photo Management**: Manage photos through Immich without additional manual processes; photos will automatically sync to the frame.
+- **Implementation of Atkinson Dithering**
 - **Ultra-low Power Consumption**: As all image processing and quantization are handled by the server, the device only consumes ~16µA during deep sleep, with photo updates completed within 30 seconds.
 - **Customizable Display**: Configure photo orientation, basic color adjustments, album name, and more through the server webpage.
 - **Cython impelementation**: Use Cython to significantly accelerate photo processing, achieving up to a 5x speed boost.
