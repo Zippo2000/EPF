@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import threading
-from cpy import  convert_image, load_scaled
+#from cpy import  convert_image, load_scaled
 from cpy import  convert_image_atkinson, load_scaled
 import ntplib
 import time
