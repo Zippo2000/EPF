@@ -1,3 +1,4 @@
+#include <WiFi.h>
 #include "WifiCaptive.h"
 #include "config.h"
 

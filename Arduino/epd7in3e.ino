@@ -4,6 +4,7 @@
 #include "epd7in3e.h"
 #include "FS.h"
 #include <ArduinoJson.h>
+#include <WiFi.h>
 // #include "SimpleWiFiManager.h"
 #include <WiFiClientSecure.h>
 #include "driver/rtc_io.h"
@@ -463,7 +464,7 @@ public:
   bool checkVoltage()
   {
     analogReadResolution(12);
-    int analogVolts = analogReadMilliVolts(0);
+    int analogVolts = analogReadMilliVolts(34);
     // Multiply by 2 due to voltage divider
     Serial.print("BAT millivolts value = ");
     Serial.print(analogVolts * 2);
