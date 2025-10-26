@@ -36,6 +36,51 @@ private:
   Epd epd;
   String imageUrl = "";
 
+// ===== NEUE FUNKTION: ADC initialisieren =====
+  void initADC()
+  {
+    Serial.println("Initializing ADC for battery monitoring...");
+    analogReadResolution(12);
+    analogSetAttenuation(ADC_11db);  // Attenuation für 0-3.3V Range
+    adcAttachPin(34);                // GPIO34 explizit als ADC konfigurieren
+    
+    // Warm-up readings - erste Messungen verwerfen
+    for(int i = 0; i < 10; i++) {
+      analogReadMilliVolts(34);
+      delay(10);
+    }
+    
+    Serial.println("ADC initialized successfully for GPIO34");
+  }
+
+  // ===== NEUE FUNKTION: Batteriespannung auslesen =====
+  int readBatteryVoltage()
+  {
+    int plusV = 0;
+    int validReadings = 0;
+    
+    for (int i = 0; i < 50; i++)
+    {
+      int reading = analogReadMilliVolts(34);
+      
+      // Ungültige Messungen (0 oder sehr niedrig) ignorieren
+      if (reading > 100) {  // Mindestens 100mV erwartet
+        plusV += reading;
+        validReadings++;
+      }
+      delay(5);
+    }
+    
+    if (validReadings == 0) {
+      Serial.println("ERROR: No valid ADC readings on GPIO34!");
+      return 0;
+    }
+    
+    int avgVoltage = (plusV / validReadings) * 2;  // Spannungsteiler-Faktor (2x)
+    Serial.printf("Battery voltage: %dmV (based on %d valid readings)\n", avgVoltage, validReadings);
+    return avgVoltage;
+  }
+
   bool downloadImage()
   {
     // preferences.begin("data, true");
@@ -87,7 +132,7 @@ private:
       plusV += analogReadMilliVolts(34);
       delay(5);
     }
-    int batteryVoltage = (plusV / 50) * 2;
+    int batteryVoltage = readBatteryVoltage();
     http.addHeader("batteryCap", String(batteryVoltage));
 
     // Download and process image
@@ -366,6 +411,10 @@ public:
   {
     Serial.begin(115200);
     delay(50);
+
+    // ===== GEÄNDERT: ADC initialisieren =====
+    initADC();  // ADC direkt nach Serial initialisieren - WICHTIG für Batteriebetrieb!
+    
     pinMode(CONFIG_PIN, INPUT_PULLUP);
 
     if (epd.Init() != 0)
@@ -463,15 +512,14 @@ public:
   // Check battery voltage level
   bool checkVoltage()
   {
-    analogReadResolution(12);
-    int analogVolts = analogReadMilliVolts(34);
-    // Multiply by 2 due to voltage divider
-    Serial.print("BAT millivolts value = ");
-    Serial.print(analogVolts * 2);
+    int batteryVoltage = readBatteryVoltage();
+    Serial.print("Battery voltage = ");
+    Serial.print(batteryVoltage);
     Serial.println("mV");
     delay(50);
+    
     // Return false if battery voltage is below 3.05V
-    if (analogVolts * 2 < 3050)
+    if (batteryVoltage < 3050)
     {
       return false;
     }
