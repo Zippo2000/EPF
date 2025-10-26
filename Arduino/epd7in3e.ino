@@ -36,36 +36,23 @@ private:
   Epd epd;
   String imageUrl = "";
 
-// ===== NEUE FUNKTION: ADC initialisieren =====
-  void initADC()
-  {
-    Serial.println("Initializing ADC for battery monitoring...");
-    analogReadResolution(12);
-    analogSetAttenuation(ADC_11db);  // Attenuation für 0-3.3V Range
-    adcAttachPin(34);                // GPIO34 explizit als ADC konfigurieren
-    
-    // Warm-up readings - erste Messungen verwerfen
-    for(int i = 0; i < 10; i++) {
-      analogReadMilliVolts(34);
-      delay(10);
-    }
-    
-    Serial.println("ADC initialized successfully for GPIO34");
-  }
-
-  // ===== NEUE FUNKTION: Batteriespannung auslesen =====
+  // ===== GEÄNDERT: Vereinfachte Batteriespannung mit analogReadMilliVolts() =====
+  // Das ist viel einfacher und vermeidet alle Legacy-ADC-Probleme
   int readBatteryVoltage()
   {
-    int plusV = 0;
+    uint32_t sumVoltage = 0;
     int validReadings = 0;
     
+    // Lese GPIO34 mehrfach aus
     for (int i = 0; i < 50; i++)
     {
-      int reading = analogReadMilliVolts(34);
+      // analogReadMilliVolts gibt direkt mV zurück
+      // Dies funktioniert ohne Legacy-Treiber-Konfiguration
+      uint32_t voltage_mv = analogReadMilliVolts(34);
       
       // Ungültige Messungen (0 oder sehr niedrig) ignorieren
-      if (reading > 100) {  // Mindestens 100mV erwartet
-        plusV += reading;
+      if (voltage_mv > 100) {  // Mindestens 100mV erwartet
+        sumVoltage += voltage_mv;
         validReadings++;
       }
       delay(5);
@@ -76,7 +63,8 @@ private:
       return 0;
     }
     
-    int avgVoltage = (plusV / validReadings) * 2;  // Spannungsteiler-Faktor (2x)
+    // Durchschnitt berechnen und mit Spannungsteiler-Faktor multiplizieren (2x)
+    int avgVoltage = (sumVoltage / validReadings) * 2;
     Serial.printf("Battery voltage: %dmV (based on %d valid readings)\n", avgVoltage, validReadings);
     return avgVoltage;
   }
@@ -372,7 +360,7 @@ private:
     rtc_gpio_set_direction(WAKEUP_PIN, RTC_GPIO_MODE_INPUT_ONLY);
     rtc_gpio_pullup_en(WAKEUP_PIN);
     rtc_gpio_pulldown_dis(WAKEUP_PIN);
-    esp_sleep_enable_ext1_wakeup(1ULL << WAKEUP_PIN, ESP_EXT1_WAKEUP_ANY_LOW);
+    esp_sleep_enable_ext1_wakeup(1ULL << WAKEUP_PIN, ESP_EXT1_WAKEUP_ALL_LOW);
 
     // Wait for serial output to complete
     Serial.println("Entering deep sleep mode...");
@@ -411,9 +399,6 @@ public:
   {
     Serial.begin(115200);
     delay(50);
-
-    // ===== GEÄNDERT: ADC initialisieren =====
-    initADC();  // ADC direkt nach Serial initialisieren - WICHTIG für Batteriebetrieb!
     
     pinMode(CONFIG_PIN, INPUT_PULLUP);
 
