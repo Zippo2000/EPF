@@ -1,0 +1,10 @@
+# Secret – contains IMMICH_API_KEY, must never be committed
+.env
+
+# Runtime data managed via docker-compose bind mounts
+/config/
+/photos/
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
