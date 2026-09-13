@@ -1,2 +1,8 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts (incl. the githooks) MUST keep LF line endings on every
+# platform: a CRLF line ending corrupts the "#!/bin/sh" shebang at checkout
+# on Windows and the hook would fail to run. `eol=lf` enforces LF on checkout.
+*.sh text eol=lf
+.githooks/* text eol=lf

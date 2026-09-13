@@ -1,0 +1,82 @@
+#!/bin/sh
+# =============================================================================
+# gitleaks pre-commit hook
+# -----------------------------------------------------------------------------
+# Scans the STAGED changes with gitleaks' built-in secret ruleset and BLOCKS
+# the commit if a potential secret (API key, token, password, ...) is present.
+#
+#   Runs the pinned `zricethezav/gitleaks` image via Docker, so no per-machine
+#   binary install is required. Works under Docker Desktop (Windows) and on
+#   native Linux/macOS shells.
+#
+#   Install (once) :  scripts/install-hooks.sh
+#   Bypass once    :  git commit --no-verify     (use sparingly)
+#
+#   Enforce even when Docker is down :  export GL_STRICT=1
+# =============================================================================
+set -u
+
+# Pin the scanner version. Bump deliberately after re-validating against the repo.
+GL_IMAGE="zricethezav/gitleaks:v8.18.4"
+
+# --- Resolve the repo root as a path Docker can mount -----------------------
+# In a pre-commit hook the CWD is already the top-level of the working tree.
+# On Windows (MSYS/Git Bash) we need a Windows path for the -v mount; `cygpath`
+# is present there and absent on Unix, so it doubles as our platform probe.
+if command -v cygpath >/dev/null 2>&1; then
+    REPO_ROOT="$(cygpath -w "$(pwd)")"
+else
+    REPO_ROOT="$(pwd)"
+fi
+
+# --- Fail-soft if Docker is unavailable --------------------------------------
+if ! command -v docker >/dev/null 2>&1; then
+    if [ "${GL_STRICT:-0}" = "1" ]; then
+        printf 'gitleaks: Docker not found and GL_STRICT=1 -> aborting the commit.\n' >&2
+        exit 1
+    fi
+    printf 'gitleaks: Docker not found - SKIPPING the secret scan.\n' >&2
+    printf '           (set GL_STRICT=1 to make this a hard failure)\n' >&2
+    exit 0
+fi
+
+# --- Inner script: executes INSIDE the image ----------------------------------
+#  1. scan the staged state with the BUILT-IN default ruleset, writing a CSV
+#     report to the image's own /tmp (never the mounted repo, so we do not
+#     litter the working tree with a report file)
+#  2. print the CSV, then a sentinel line carrying gitleaks' real exit code
+#     (blocking is driven by that code, independent of any text parsing below)
+INNER='cd /src
+gitleaks protect --staged --no-banner --no-color -f csv -r /tmp/gl.csv 2>/dev/null
+ec=$?
+cat /tmp/gl.csv 2>/dev/null
+echo "__GLEXIT__=$ec"'
+
+OUT="$(docker run --rm --entrypoint sh -v "$REPO_ROOT:/src" "$GL_IMAGE" -c "$INNER" 2>/dev/null)"
+
+# --- Parse --------------------------------------------------------------------
+# gitleaks exit code: 0 = clean, 1 = findings, >1 = scanner error.
+GL_EXIT="$(printf '%s\n' "$OUT" | sed -n 's/^__GLEXIT__=//p' | tr -d '[:space:]')"
+[ -z "$GL_EXIT" ] && GL_EXIT=0
+
+# Human-readable findings = CSV data rows (drop the header + the sentinel).
+ROWS="$(printf '%s\n' "$OUT" \
+        | sed '/^__GLEXIT__=/d' \
+        | sed '/^RuleID,/d' \
+        | sed '/^[[:space:]]*$/d')"
+
+if [ "$GL_EXIT" = "0" ]; then
+    exit 0        # clean - silent, so we do not annotate every commit
+fi
+
+# --- Block: explain what tripped the scanner ----------------------------------
+printf '\n\033[1;31mgitleaks\033[0m blocked this commit: potential secret(s) in the staged changes.\n\n' >&2
+if [ -n "$ROWS" ]; then
+    # CSV columns: 1=RuleID 3=File 7=StartLine  ->  "  [rule]  file:line"
+    printf '%s\n' "$ROWS" \
+        | awk -F',' '{ if (NF>=7) printf "  [\033[33m%s\033[0m]  %s:%s\n", $1, $3, $7 }' >&2
+    printf '\n' >&2
+fi
+printf 'Inspect the flagged file(s). If this is a false positive, commit once with:\n\n' >&2
+printf '    git commit --no-verify\n\n' >&2
+exit 1

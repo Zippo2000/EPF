@@ -107,6 +107,31 @@ To run the code follow the following steps:
 
 You can re-enter the configuration page later by short-circuiting the setting button at least 5 second while rebooting.
 
+## Security: secret scanning (pre-commit)
+
+A `gitleaks` **pre-commit hook** scans every staged change and **blocks the commit** if it looks like it contains a secret (API keys, tokens, passwords, …). This is what guards against leaking things like an Immich API key or a LAN address into the repo. It uses gitleaks' built-in ruleset, runs in a pinned Docker image, and needs no per-machine binary install.
+
+**Install (once, after cloning):**
+
+```bash
+sh scripts/install-hooks.sh
+```
+
+This points Git's `core.hooksPath` at the committed `.githooks/` directory, so every `git commit` runs the scan. Requirements: Docker (with Docker Desktop running on Windows) and the `zricethezav/gitleaks:v8.18.4` image (pulled automatically on first use).
+
+**Behaviour:**
+- clean changes → commit proceeds silently;
+- a potential secret is found → the commit is **blocked** with a `file:line [rule]` pointer;
+- no Docker available → the scan is **skipped with a warning** (commit allowed). Set `GL_STRICT=1` to make that a hard failure instead.
+
+**Bypass a single, confirmed false positive:**
+
+```bash
+git commit --no-verify
+```
+
+**Note for contributors:** never paste real credentials (e.g. the Immich API key) into tracked files. Put them in the local, git-ignored `.env` file (see `.env.example`) instead. The scanner is a backstop, not a substitute for that habit.
+
 ## License
 
 This project is licensed under the MIT License.
