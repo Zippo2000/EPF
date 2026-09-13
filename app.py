@@ -459,7 +459,13 @@ class ConfigFileHandler(FileSystemEventHandler):
         """ Load config """
         try:
             with open(self.config_path, 'r') as file:
-                return yaml.safe_load(file)
+                config = yaml.safe_load(file)
+            # yaml.safe_load returns None for an empty or comment-only file
+            # WITHOUT raising an exception, so the except below would not fire.
+            # Fall back to defaults in that case so callers never dereference None.
+            if config is None:
+                return DEFAULT_CONFIG
+            return config
         except Exception as e:
             print(f"Error reading config file: {e}")
             # Fallback to default configuration if reading fails
