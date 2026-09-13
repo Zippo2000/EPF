@@ -5,11 +5,11 @@ SKIPPED by default and only run when the environment explicitly opts in
 (`EPF_LIVE_TESTS=1`) AND supplies the connection details, so the offline suite
 (`python -m pytest`) never touches the network:
 
-      IMMICH_LIVE_URL   e.g. http://<host>:2283      (no default; required)
-      IMMICH_API_KEY    the server's API key           (with "asset.download")
-      EPF_LIVE_ALBUM    album name to test against      (default: "eink")
+      IMMICH_URL        base URL of the Immich server   (required)
+      IMMICH_API_KEY    the server's API key             (with "asset.download")
+      IMMICH_ALBUM      album name to test against        (default: "eink")
 
-Run them with:  sh scripts/run-live-tests.sh http://<host>:2283
+Run them with:  sh scripts/run-live-tests.sh     (all read from the local .env)
 Nothing here hard-codes a server address or a credential.
 
 Covered (see TESTSPEC.md):
@@ -35,9 +35,9 @@ LIVE_ENABLED = os.environ.get("EPF_LIVE_TESTS") == "1"
 
 
 def _env():
-    url = os.environ.get("IMMICH_LIVE_URL", "").rstrip("/")
+    url = os.environ.get("IMMICH_URL", "").rstrip("/")
     key = os.environ.get("IMMICH_API_KEY", "")
-    album = os.environ.get("EPF_LIVE_ALBUM", "eink")
+    album = os.environ.get("IMMICH_ALBUM", "eink")
     return url, key, album
 
 
@@ -51,7 +51,7 @@ def immich():
 
     url, key, album = _env()
     if not url or not key:
-        pytest.skip("IMMICH_LIVE_URL / IMMICH_API_KEY not provided")
+        pytest.skip("IMMICH_URL / IMMICH_API_KEY not provided")
 
     import requests
 
