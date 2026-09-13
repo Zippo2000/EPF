@@ -604,6 +604,8 @@ def settings():
         if new_config['immich']['rotation'] not in [0, 90, 180, 270]:
             return render_template('settings.html', 
                                    config=current_config, 
+                                   battery_voltage=battery_voltage,
+                                   battery_percentage=battery_percentage,
                                    error="Rotation must be 0, 90, 180, or 270 degrees")
         
         try:
@@ -619,6 +621,8 @@ def settings():
         except Exception as e:
             return render_template('settings.html', 
                                    config=current_config, 
+                                   battery_voltage=battery_voltage,
+                                   battery_percentage=battery_percentage,
                                    error=f"Error saving configuration: {str(e)}")
     
     return render_template('settings.html', 
