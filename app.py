@@ -769,8 +769,16 @@ def process_and_download():
             else:
                 # Sort undownloaded photos by time
                 remaining_images = [img for img in data['assets'] if img['id'] not in downloaded_images]
-                remaining_images.sort(key=lambda x: x.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00'),
-                                   reverse=True)
+                if not remaining_images:
+                    # All photos have already been shown – start the album over
+                    # (same recovery as the random-order branch below)
+                    reset_tracking_file()
+                    remaining_images = sorted(data['assets'],
+                                             key=lambda x: x.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00'),
+                                             reverse=True)
+                else:
+                    remaining_images.sort(key=lambda x: x.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00'),
+                                       reverse=True)
         else:  # random order
             remaining_images = [img for img in data['assets'] if img['id'] not in downloaded_images]
             if not remaining_images:
