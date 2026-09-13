@@ -8,3 +8,7 @@
 # Python build artifacts
 __pycache__/
 *.py[cod]
+
+# pytest
+.pytest_cache/
+**/__pycache__/
