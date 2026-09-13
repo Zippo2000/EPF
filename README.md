@@ -22,10 +22,15 @@ Mostly modifieded from TRMNL WiFiCaptive[https://github.com/usetrmnl/firmware/tr
 - [Components](#components)
 - [Installation](#installation)
 - [Testing](#testing)
+- [Architecture & Interfaces](ARCHITECTURE.md)
 - [Security: secret scanning (pre-commit)](#security-secret-scanning-pre-commit)
 - [License](#license)
 
 ## Components
+
+> How the three parts (Immich · EPF · ESP32) exchange data is documented in
+> **[ARCHITECTURE.md](ARCHITECTURE.md)** — hardware roles, the two wire contracts, and the
+> invariants to keep in sync.
 
 - [FireBeetle 2 ESP32-E](https://wiki.dfrobot.com/FireBeetle_Board_ESP32_E_SKU_DFR0654)
 - [7.3-inch E Ink Spectra 6 (E6) Full Color E-Paper Display Module + HAT](https://www.waveshare.com/7.3inch-e-paper-hat-e.htm)
