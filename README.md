@@ -48,10 +48,25 @@ $ docker build -t Zippo2000/epf .
 
 ### Run the Container
 
-Create a container from the image. Don’t forget to edit your Immich API key.
+**Option A – docker-compose (recommended):**
+
+```
+cp .env.example .env   # then set IMMICH_API_KEY in .env
+docker compose up -d
+```
+
+**Option B – docker run:**
+
+Note: the environment variable uses **underscores** (`IMMICH_API_KEY`), not hyphens.
 
 ```bash
-$ docker run --name epf -e IMMICH-API-KEY='<replace-your-immich-api-key>' -d -p <replace-port>:5000 Zippo2000/epf
+docker run --name epf \
+  -e IMMICH_API_KEY='<your-immich-api-key>' \
+  -e TZ=Europe/Berlin \
+  -v $(pwd)/config:/config \
+  -v $(pwd)/photos:/photos \
+  -p <replace-port>:5000 \
+  -d Zippo2000/epf
 ```
 
 ### Configure `config.yaml` (no longer needed, configure the settings directly from webpage)
