@@ -21,6 +21,8 @@ Mostly modifieded from TRMNL WiFiCaptive[https://github.com/usetrmnl/firmware/tr
 
 - [Components](#components)
 - [Installation](#installation)
+- [Testing](#testing)
+- [Security: secret scanning (pre-commit)](#security-secret-scanning-pre-commit)
 - [License](#license)
 
 ## Components
@@ -106,6 +108,29 @@ To run the code follow the following steps:
 8. A captive portal shows up allowing to enter your WiFi details and details of the Docker container (e.g. http://192.168.100.10:15151)
 
 You can re-enter the configuration page later by short-circuiting the setting button at least 5 second while rebooting.
+
+## Testing
+
+Two suites live in `tests/` (spec in [`TESTSPEC.md`](TESTSPEC.md)). Because the server
+imports the Cython-built `cpy.so` (a Linux binary), both run inside a Docker container —
+the scripts below build and start it for you.
+
+**Offline (no network, no Immich) — 12 tests:**
+```bash
+sh scripts/run-tests.sh
+```
+Covers battery-voltage→percent mapping, config handling (`load_config` never returns `None`,
+deep-copy isolation), settings-page rendering, and the `/sleep` contract.
+
+**Live (against a real Immich v3 server) — 4 tests:**
+```bash
+sh scripts/run-live-tests.sh
+```
+Reads `IMMICH_URL`, `IMMICH_ALBUM` and `IMMICH_API_KEY` from your local, git-ignored
+`.env` (see [`.env.example`](.env.example)). Pass a server/album to override the `.env`
+values: `sh scripts/run-live-tests.sh http://<host>:2283 <album>`. These verify the v3 API
+contract (album lookup, paginated `search/metadata` fetch, original download) and the full
+`/download` pipeline end-to-end. Live tests skip cleanly when no `.env`/server is available.
 
 ## Security: secret scanning (pre-commit)
 

@@ -417,22 +417,36 @@ Stacktrace im HTTP-Body, und der Container bleibt danach funktionsfähig (nicht 
 
 ### 7.2 Automatisierung
 
-**pytest-Suite (L0/L1, offline):**
+**Offline (kein Netz, kein Immich) – 12 Tests:**
 ```bash
-pip install pytest freezegun
-pytest -q tests/            # TC-U*, TC-SL*, TC-N06/N07 (gemockt)
+sh scripts/run-tests.sh
 ```
-Empfohlene Test-Module:
-- `tests/test_config.py` → TC-U01, TC-U02, TC-U06, TC-N06/N08
-- `tests/test_ordering.py` → TC-U03, TC-U04, TC-N01/N02 (gemockte Asset-Listen)
-- `tests/test_battery.py` → TC-U05, TC-SL03, TC-SL04
-- `tests/test_settings.py` → TC-S01..S04 (Flask-Testclient, offline)
-- `tests/test_sleep.py` → TC-SL01, TC-SL02 (mit `freezegun`)
+Weil `app.py` das Cython-Modul `cpy.so` (Linux-ELF) importiert, läuft die Suite in einem
+Linux-Container, den das Skript selbst baut und startet.
+- `tests/test_battery.py` → TC-U05 (Spannung→%: Clamping + Monotonie)
+- `tests/test_config.py` → TC-U01 (Deep-Copy-Isolation), TC-U02 (`load_config` liefert nie `None`)
+- `tests/test_settings.py` → TC-S01 (GET rendert), TC-S02 (ungültige Rotation → 200, kein 500)
+- `tests/test_sleep.py` → TC-SL01/SL02 (Struktur-/Kontrakt-Check von `/sleep`)
 
-**Live/Integration (⚠️):** TC-API*, TC-D*, TC-C02/C03/C04, TC-N03/N05 – gegen echten
-Immich-Server (Referenz `<IMMICH_HOST>`) per `docker compose` + `curl`-Harness.
+**Live (echter Immich-Server) – 4 Tests:**
+```bash
+sh scripts/run-live-tests.sh          # IMMICH_URL / IMMICH_ALBUM / IMMICH_API_KEY aus .env
+# optional mit One-off-Override:
+sh scripts/run-live-tests.sh http://<host>:2283 eink
+```
+- `tests/test_live.py` → TC-API01 (Album-Auflösung), TC-API02 (paginiertes `search/metadata`
+  mit Vollständigkeits-Assertion), TC-API03 (Original-Download), TC-D01 + TC-API05 (komplette
+  `/download`-Pipeline + `X-Photo-Url`). Die Tests skippen sauber, wenn kein `.env`/Server da ist.
 
-### 7.3 Minimaler curl-Harness (Live-Lauf)
+> **Noch nicht automatisiert** (bleibt im manuellen Tier): TC-U03/U04 (Ordering-Guards),
+> TC-C01–C04 (Compose-Persistenz / Live-Reload), TC-API04 (Permission-Verweigerung, braucht
+> einen restriktiven Key), TC-D02–D04, TC-SL03/SL04.
+
+### 7.3 Manueller Ad-hoc-Check (curl)
+
+> Primärer automatisierter Live-Weg ist die pytest-Suite oben (`tests/test_live.py`).
+> Dieser Harness dient als schneller manueller Check gegen einen *lokal laufenden*
+> Server (Port 15001).
 ```bash
 B=http://localhost:15001
 # D01 – happy path
