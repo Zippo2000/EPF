@@ -13,6 +13,7 @@ from datetime import datetime, timedelta
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import threading
+import copy as _copy_module
 #from cpy import  convert_image, load_scaled
 from cpy import  convert_image_atkinson, load_scaled
 import ntplib
@@ -39,7 +40,11 @@ DEFAULT_CONFIG = {
     }
 }
 
-current_config = DEFAULT_CONFIG.copy()
+# Use deepcopy to avoid sharing the inner 'immich' dict with DEFAULT_CONFIG.
+# A shallow .copy() would leave current_config['immich'] IS DEFAULT_CONFIG['immich'],
+# so any in-place update (e.g. from update_app_config) would silently mutate the
+# module-level defaults that back the "Reset to Default" button.
+current_config = _copy_module.deepcopy(DEFAULT_CONFIG)
 
 # Initialize configuration
 url = DEFAULT_CONFIG['immich']['url']
