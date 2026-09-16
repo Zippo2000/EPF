@@ -41,7 +41,7 @@ templates/  static/     # Flask UI (settings page) and CSS
 
 Arduino/                # ESP32 firmware (.ino + E-Paper driver + Wi-Fi captive portal)
 scripts/                # run-tests.sh (offline), run-live-tests.sh (live), install-hooks.sh
-tests/                  # pytest suite: test_battery/config/settings/sleep (offline) + test_live
+tests/                  # pytest suite: test_battery/config/settings/sleep/ordering/payload/battery_display/geometry (offline) + test_live
 .githooks/pre-commit    # gitleaks secret scanner (runs in a pinned Docker image)
 
 README.md               # product docs + install + user guide (English)
@@ -139,7 +139,7 @@ the Linux-only `cpy.so` — and pytest is `pip install`ed at container start.
 
 | Tier | File(s) | Covers | How to run | Needs Immich? |
 |------|---------|--------|------------|--------------|
-| **Offline** | `tests/test_battery.py`, `test_config.py`, `test_settings.py`, `test_sleep.py` | pure units: voltage→%, `load_config` never `None`, settings-page 500-safety, `/sleep` contract | `sh scripts/run-tests.sh` | No |
+| **Offline** | `tests/test_battery.py`, `test_config.py`, `test_settings.py`, `test_sleep.py`, `test_ordering.py`, `test_payload.py`, `test_battery_display.py`, `test_geometry.py` | pure units: voltage→%, `load_config` never `None`, settings-page 500-safety, `/sleep` contract, battery display, `fit`/`fill` geometry | `sh scripts/run-tests.sh` | No |
 | **Live** | `tests/test_live.py` | Immich **v3** contract (album-by-name, paginated `search/metadata`, original download) + the full `/download` pipeline + `X-Photo-Url` | `sh scripts/run-live-tests.sh` | Yes |
 
 Key mechanics:

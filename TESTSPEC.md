@@ -266,7 +266,7 @@ immich:
 - **Pass:** 3 Formate dekodiert; kaputte Datei → sauberer 500.
 
 #### TC-D04 · Skalierungs-Modi `fit` vs `fill`
-🟡 P2 · ✅
+🟡 P2 · ✅ *automatisiert in pytest (`test_geometry.py`)*
 
 - **Schritt:** gleiches Bild mit `display_mode=fit` / `fill`.
 - **Erwartet:** `fit` → Aspect-Ratio erhalten (Letterbox); `fill` → Crop/Stretch auf Zielaspect.
@@ -367,7 +367,7 @@ immich:
 - **Pass:** Wrap-around-Fenster als „asleep“ erkannt.
 
 #### TC-SL03 · Batterie-Reading aus `batteryCap`
-🟡 P2 · ✅
+🟡 P2 · ✅ *automatisiert in pytest (`test_battery_display.py`)*
 
 - **Schritt:** `GET /download` mit `batteryCap: 3950`; danach `GET /setting`.
 - **Erwartet:** `last_battery_voltage = 3950`; `/setting` zeigt passenden %.
@@ -375,7 +375,7 @@ immich:
 - **Pass:** Reading gespeichert & ausgegeben; ungültiger Header toleriert.
 
 #### TC-SL04 · Stale-Batterie-Timeout (1 h)
-🟡 P2 · ✅ (fake clock)
+🟡 P2 · ✅ *automatisiert in pytest (`test_battery_display.py`, monkeypatched clock)*
 
 - **Schritt:** `last_battery_update = now − 2 h`; `GET /setting`.
 - **Erwartet:** Batterie = `0` (nicht verfügbar), nicht der alte Wert.
@@ -395,7 +395,7 @@ immich:
 | TC-N04 | API-Key ungültig/rotiert | `x-api-key` → 401 | kontrollierter Fehler, kein Stacktrace in Body | TC-API04 |
 | TC-N05 | Download-Fehler (Asset) | `.../original` → 5xx | kontrolliertes `{"error":"Failed to download image"}` (500), sauber | TC-D01 |
 | TC-N06 | `config.yaml` halbgem (Write-in-flight) | Watchdog + Teil-Schreib | `load_config` → Defaults (keine `None`) | TC-U02 |
-| TC-N07 | `batteryCap` = NaN/leer | `/download` | kein Crash, Batterie bleibt 0 | TC-SL03 |
+| TC-N07 | `batteryCap` = NaN/leer | `/download` | kein Crash, Batterie bleibt 0 | TC-SL03 · ✅ `test_battery_display.py::test_nan_voltage_shows_zero` |
 | TC-N08 | `config.yaml` fehlt komplett | Container frisch, kein Mount | Defaults geladen, App startet | TC-U02 / C01 |
 | TC-N09 | Zyklische `nextPage` (API-Bug) | Mock: `nextPage` wiederholt | Safety-Abort nach Max-Paginierung (optional) | TC-API02 |
 | TC-N10 | Rotation=45 (ungültig) | `POST /setting` | 200 + Validierungs-Error, kein 500 | TC-S02 |
@@ -417,7 +417,7 @@ Stacktrace im HTTP-Body, und der Container bleibt danach funktionsfähig (nicht 
 
 ### 7.2 Automatisierung
 
-**Offline (kein Netz, kein Immich) – 23 Tests:**
+**Offline (kein Netz, kein Immich) – 29 Tests:**
 ```bash
 sh scripts/run-tests.sh
 ```
@@ -427,6 +427,8 @@ Linux-Container, den das Skript selbst baut und startet.
 - `tests/test_config.py` → TC-U01 (Deep-Copy-Isolation), TC-U02 (`load_config` liefert nie `None`)
 - `tests/test_settings.py` → TC-S01 (GET rendert), TC-S02 (ungültige Rotation → 200, kein 500)
 - `tests/test_sleep.py` → TC-SL01/SL02 (Struktur-/Kontrakt-Check von `/sleep`)
+- `tests/test_battery_display.py` → TC-SL03 (frisches Reading), TC-SL04 (Stale-Timeout), TC-N07 (NaN → 0)
+- `tests/test_geometry.py` → TC-D04 (`fit` letterboxt, `fill` center-crop)
 
 **Live (echter Immich-Server) – 4 Tests:**
 ```bash
@@ -439,7 +441,10 @@ sh scripts/run-live-tests.sh http://<host>:2283 eink
   `/download`-Pipeline + `X-Photo-Url`). Die Tests skippen sauber, wenn kein `.env`/Server da ist.
 
 > **Noch nicht automatisiert** (bleibt im manuellen Tier): TC-C01–C04 (Compose-Persistenz / Live-Reload),
-> TC-API04 (Permission-Verweigerung, restriktiver Key), TC-D03/D04, TC-SL03/SL04.
+> TC-API04 (Permission-Verweigerung, restriktiver Key), TC-D03.
+>
+> ✅ **P2 automatisiert (März 2025):** TC-D04, TC-SL03, TC-SL04, TC-N07 → pytest offline
+> (`tests/test_battery_display.py`, `tests/test_geometry.py`).
 
 ### 7.3 Manueller Ad-hoc-Check (curl)
 

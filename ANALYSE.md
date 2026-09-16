@@ -124,8 +124,8 @@ Der Herzstück-Ablauf pro Request (Funktion `process_and_download`):
 
 1. **Batterievoltage** aus Header `batteryCap` lesen & merken (`last_battery_voltage` / `_update`) – fließt später in die Web-UI.
 2. **Album auffinden:** `GET {url}/api/albums` → `albumName == albumname` → `albumid` (sonst 404). ⚠ Feldname-Kopplung, s. §10.5.6.
-3. **Assets abrufen:** `GET {url}/api/albums/{albumid}` → `data['assets']` (sonst 404 „no images“).
-4. **Auswahl** je nach `image_order`:
+3. **Assets abrufen:** `POST {url}/api/search/metadata (paginiert, nextPage-Loop)` → `data['assets']` (sonst 404 „no images“).
+4. **Auswahl** je nach `image_order` (in der reinen Funktion `choose_next_image()`):
    - **newest:** letztes (neustes per EXIF `dateTimeOriginal`) Bild; ist es *neu*, → Tracking-Reset + absteigend sortiert; sonst nur die **unseen** Assets, absteigend.
    - **random:** unseen Assets, sonst Reset + alle; **zufällig** eines ausgewählt.
 5. **`save_downloaded_image(asset_id)`** – Auswahl wird als „gezeigt“ protokolliert.
@@ -475,7 +475,7 @@ immich:
 
 6. **Immich-API-Vertrag – fragile Feld-Kopplung (wichtigster Server-Risiko-Knoten):**
    - **`GET /api/albums`** wird per `item['albumName'] == <config>` gefiltert. Der offiziell dokumentierte Immich-`AlbumDto`-Feldname ist jedoch **`name`** – ob die Ziel-Instanz `albumName` liefert, hängt von Immich-Version/Build ab und ist **hier nicht gegen eine Live-Instanz verifiziert**. Fehlt das Feld, wirft der Generator `KeyError` → 500. **Verifikations-Vorschlag:** einmal `curl -H "x-api-key: …" {immich}/api/albums` und die Schlüssel der Elemente inspizieren.
-   - **Fehlauswirkung-Kategorien:** (a) *benigne* (→ 24-h-Schlaf): nur die zwei expliziten 404s „Album not found“/„No images found“; (b) **schlecht** (→ **endloser 10-s-Poll-Loop**, s. 10.1.4): *jedes* Nicht-200 aller drei Aufrufe (`/api/albums`, `/api/albums/{id}`, `/api/assets/{id}/original` – auch 401/404!), KeyError auf `id`/`albumName`/`originalPath`, jeder rawpy-Dekodier-Fehler. D. h. die Fehlerfläche ist systematisch **gegen den Poll-Pfad verzerrt** – ein kaputter API-Key (→ 401 am ersten Aufruf ⇒ 500) bedeutet permanentes Pollen statt Schlafs.
+   - **Fehlauswirkung-Kategorien:** (a) *benigne* (→ 24-h-Schlaf): nur die zwei expliziten 404s „Album not found“/„No images found“; (b) **schlecht** (→ **endloser 10-s-Poll-Loop**, s. 10.1.4): *jedes* Nicht-200 aller drei Aufrufe (`/api/albums`, `/api/search/metadata`, `/api/assets/{id}/original` – auch 401/404!), KeyError auf `id`/`albumName`/`originalPath`, jeder rawpy-Dekodier-Fehler. D. h. die Fehlerfläche ist systematisch **gegen den Poll-Pfad verzerrt** – ein kaputter API-Key (→ 401 am ersten Aufruf ⇒ 500) bedeutet permanentes Pollen statt Schlafs.
    - **`exifInfo.dateTimeOriginal`** wird defensiv per `.get()` mit 1970-Fallback gelesen (crash-sicher), aber die Sortierung ist **stringbasiert** ⇒ einheitliches Format erforderlich; gemischte EXIF-/ISO-Formate würden die Reihenfolge *still* fälschen (kein Crash).
    - `originalPath` wird für die RAW/HEIC-Zweige hart benötigt (`.lower().endswith(...)`); fehlt es bei einem Asset ⇒ KeyError ⇒ 500 ⇒ Poll-Loop.
 

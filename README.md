@@ -120,12 +120,12 @@ Two suites live in `tests/` (spec in [`TESTSPEC.md`](TESTSPEC.md)). Because the 
 imports the Cython-built `cpy.so` (a Linux binary), both run inside a Docker container —
 the scripts below build and start it for you.
 
-**Offline (no network, no Immich) — 12 tests:**
+**Offline (no network, no Immich) — 29 tests:**
 ```bash
 sh scripts/run-tests.sh
 ```
 Covers battery-voltage→percent mapping, config handling (`load_config` never returns `None`,
-deep-copy isolation), settings-page rendering, and the `/sleep` contract.
+deep-copy isolation), settings-page rendering, the `/sleep` contract, the **newest/random ordering** guard (all-already-shown → reset), and the **6-colour payload/dither** contract.
 
 **Live (against a real Immich v3 server) — 4 tests:**
 ```bash
