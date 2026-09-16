@@ -165,6 +165,40 @@ def reset_tracking_file():
         print(f"Error resetting tracking file: {e}")
 
 
+def choose_next_image(assets, downloaded_images, image_order):
+    """Pick the next image to show and report whether the tracking file must be
+    reset because no undownloaded image was left (the album has been shown in full).
+
+    Pure (no I/O): ``assets`` is the ordered album list, ``downloaded_images`` the set
+    of already-shown asset ids, ``image_order`` is "newest" or "random". Returns
+    ``(selected_image, need_reset)``.
+
+    Straight extraction of the former inline /download ordering code, kept behaviour-
+    equivalent so the P0 "already-shown" recovery (TESTSPEC U03/U04) is unit-testable
+    offline.
+    """
+    def _capture(a):
+        return a.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00')
+
+    if image_order == 'newest':
+        latest_id = max(assets, key=_capture)['id']
+        if not downloaded_images or latest_id not in downloaded_images:
+            # No history yet, or a newer photo arrived: (re)start at the newest.
+            return sorted(assets, key=_capture, reverse=True)[0], True
+        remaining = [a for a in assets if a['id'] not in downloaded_images]
+        if not remaining:
+            # Every photo has already been shown: start the album over.
+            return sorted(assets, key=_capture, reverse=True)[0], True
+        remaining.sort(key=_capture, reverse=True)
+        return remaining[0], False
+
+    # random order
+    remaining = [a for a in assets if a['id'] not in downloaded_images]
+    if not remaining:
+        return random.choice(assets), True
+    return random.choice(remaining), False
+
+
 def depalette_image(pixels, palette):
     palette_array = np.array(palette)
     diffs = np.sqrt(np.sum((pixels[:, :, None, :] - palette_array[None, None, :, :]) ** 2, axis=3))
@@ -755,44 +789,11 @@ def process_and_download():
         # Keep the same downstream shape as the previous album-details response
         data = {'assets': album_assets}
 
-        # Get display order setting
-        image_order = current_config['immich']['image_order']
-
-        if image_order == 'newest':
-            # Check if new photos have been added
-            latest_photo = max(data['assets'], key=lambda x: x.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00'))
-            latest_id = latest_photo['id']
-            
-            # Reset tracking file if it's empty or latest photo is not in downloaded list
-            downloaded_images = load_downloaded_images()
-            if not downloaded_images or latest_id not in downloaded_images:
-                reset_tracking_file()
-                # Sort photos by capture time
-                sorted_assets = sorted(data['assets'], 
-                                    key=lambda x: x.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00'),
-                                    reverse=True)
-                remaining_images = sorted_assets
-            else:
-                # Sort undownloaded photos by time
-                remaining_images = [img for img in data['assets'] if img['id'] not in downloaded_images]
-                if not remaining_images:
-                    # All photos have already been shown – start the album over
-                    # (same recovery as the random-order branch below)
-                    reset_tracking_file()
-                    remaining_images = sorted(data['assets'],
-                                             key=lambda x: x.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00'),
-                                             reverse=True)
-                else:
-                    remaining_images.sort(key=lambda x: x.get('exifInfo', {}).get('dateTimeOriginal', '1970-01-01T00:00:00'),
-                                       reverse=True)
-        else:  # random order
-            remaining_images = [img for img in data['assets'] if img['id'] not in downloaded_images]
-            if not remaining_images:
-                reset_tracking_file()
-                remaining_images = data['assets']
-
-        # Select photo
-        selected_image = remaining_images[0] if image_order == 'newest' else random.choice(remaining_images)
+        # Pick the next image; the P0 'already-shown' recovery lives in choose_next_image().
+        selected_image, need_reset = choose_next_image(
+            data['assets'], downloaded_images, current_config['immich']['image_order'])
+        if need_reset:
+            reset_tracking_file()
         asset_id = selected_image['id']
         
         # Record downloaded image

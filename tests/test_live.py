@@ -169,16 +169,22 @@ def test_d01_download_end_to_end_and_photo_url_header(immich):
 
     assert resp.status_code == 200, f"/download -> {resp.status_code}: {resp.data[:300]}"
 
-    # The payload is the .c array: comma-separated 16-level integers.
-    body = resp.get_data(as_text=True)
-    first_line = body.splitlines()[0] if body.strip() else ""
-    assert re.match(r"^\d+(,\d+)*,?$", first_line.strip()), (
-        f"payload does not look like a C array: {first_line[:80]!r}")
+    # Served as the .c attachment over text/plain.
+    ctype = resp.headers.get("Content-Type", "")
+    assert ctype.startswith("text/plain"), ctype
+    disposition = resp.headers.get("Content-Disposition", "")
+    assert "attachment" in disposition and ".c" in disposition, disposition
 
-    # TC-API05: the NFC deep-link header is present and well-formed.
+    # The frame body is the packed .c stream and terminates with the C-array marker '};'.
+    # (The detailed hex/token structure is pinned by the offline tests/test_payload.py.)
+    body = resp.get_data(as_text=True)
+    assert body.rstrip().endswith("};"), "payload must end with the C-array closing marker ';}'"
+
+    # TC-API05: NFC deep-link header, well-formed.
+    # NOTE: app.py builds this from a hardcoded placeholder host (https://my.immich.app),
+    # NOT from the configured IMMICH_URL; the two UUIDs are the album/asset that was shown.
     photo_url = resp.headers.get("X-Photo-Url")
     assert photo_url, "X-Photo-Url header missing from /download response"
     assert re.match(
-        r"^https://[^/]+/albums/[0-9a-f-]{36}/photos/[0-9a-f-]{36}$",
-        photo_url,
+        r"^https://[A-Za-z0-9.-]+/albums/[0-9a-f-]{36}/photos/[0-9a-f-]{36}$", photo_url,
     ), f"unexpected X-Photo-Url shape: {photo_url}"

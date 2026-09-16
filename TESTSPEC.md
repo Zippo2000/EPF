@@ -10,8 +10,8 @@
 Diese Spezifikation definiert die Tests für den **Python-Server** (`app.py` + `cpy.so`), der:
 
 - Fotos aus **Immich** (v3 REST-API) holt,
-- sie skaliert, mit **Atkinson-Dithering** zu einem 16-Level-Grayscale-Raster quantisiert,
-- das Raster als C-Array (`.c`) an die ESP32-Firmware ausliefert,
+- sie skaliert, mit **Atkinson-Dithering** auf die 6-Farben-Palette des E630S „Spectra-6“ quantisiert (je **zwei 4-bit-Pixel-Indizes pro Byte gepackt**),
+- daraus ein gepacktes Hex-Byte-Stream (`.c`, ~588 KB, abschließendes `};`) an die ESP32-Firmware ausliefert,
 - die Konfiguration via Web-UI (`/setting`) und `config.yaml` verwaltet,
 - Schlaf-/Weck-Planung (`/sleep`) und Ladezustand (`batteryCap`-Header) behandelt.
 
@@ -227,7 +227,7 @@ immich:
 🟠 P1 · commit `ca4287f` · ⚠️
 
 - **Schritt:** nach `/download` Header `X-Photo-Url` prüfen.
-- **Erwartet:** `https://my.immich.app/albums/{albumId}/photos/{assetId}`, IDs konsistent mit der `.c`.
+- **Erwartet:** `https://my.immich.app/albums/{albumId}/photos/{assetId}` (Host `my.immich.app` ist hartkodierter Platzhalter in `app.py`, **nicht** die reale Immich-URL); IDs = Album/Asset des ausgewählten Fotos.
 - **Pass:** Header vorhanden, Format + IDs stimmig.
 - **Referenz:** ✅ (`…/photos/1d1d3364-…`).
 
@@ -243,7 +243,7 @@ immich:
 - **Erwartet:**
   - HTTP **200**;
   - `Content-Type: text/plain`, `Content-Disposition: attachment; filename=image_<assetId>.c`;
-  - Body = kommasepariertes 16-Level-Raster (Werte ∈ 0..15) der Zielgröße;
+  - Body = gepackter Hex-Byte-Stream (2 Hex-Zeichen pro Byte, 6-Farben-Nibbles, `};`-Ende) der Zielgröße;
   - Header `X-Photo-Url` (TC-API05);
   - kein Traceback im Log.
 - **Pass:** 200 + wohlgeformtes `.c` + Header + log-frei.
@@ -253,7 +253,7 @@ immich:
 🟠 P1 · Fixture F9 · ✅
 
 - **Schritt:** gleiches Quellbild 2× durch `convert_image_atkinson` → Bytevergleich.
-- **Erwartet:** bit-gleich; keine NaN; Palette ⊂ {0..15}.
+- **Erwartet:** bit-gleich; keine NaN; alle 4-bit-Nibbles ∈ {0..6} (6-Farben-Palette).
 - **Pass:** identische Ausgaben; Wertebereich ok.
 - **Zweck:** schützt die Atkinson-Integration (Fork-spezifisch, nicht im Original) vor Regression.
 
@@ -417,7 +417,7 @@ Stacktrace im HTTP-Body, und der Container bleibt danach funktionsfähig (nicht 
 
 ### 7.2 Automatisierung
 
-**Offline (kein Netz, kein Immich) – 12 Tests:**
+**Offline (kein Netz, kein Immich) – 23 Tests:**
 ```bash
 sh scripts/run-tests.sh
 ```
@@ -438,9 +438,8 @@ sh scripts/run-live-tests.sh http://<host>:2283 eink
   mit Vollständigkeits-Assertion), TC-API03 (Original-Download), TC-D01 + TC-API05 (komplette
   `/download`-Pipeline + `X-Photo-Url`). Die Tests skippen sauber, wenn kein `.env`/Server da ist.
 
-> **Noch nicht automatisiert** (bleibt im manuellen Tier): TC-U03/U04 (Ordering-Guards),
-> TC-C01–C04 (Compose-Persistenz / Live-Reload), TC-API04 (Permission-Verweigerung, braucht
-> einen restriktiven Key), TC-D02–D04, TC-SL03/SL04.
+> **Noch nicht automatisiert** (bleibt im manuellen Tier): TC-C01–C04 (Compose-Persistenz / Live-Reload),
+> TC-API04 (Permission-Verweigerung, restriktiver Key), TC-D03/D04, TC-SL03/SL04.
 
 ### 7.3 Manueller Ad-hoc-Check (curl)
 
@@ -485,7 +484,7 @@ Der Server↔Firmware-Contract, den die Firmware-Seite abdecken muss:
 
 | Schnittstelle | Richtung | Test auf FW-Seite |
 |---|---|---|
-| `GET /download` → `.c`-Array (16-Level) | Server → FW | Parser erzeugt valides Bild; Größe/Format stabil (TC-D01) |
+| `GET /download` → `.c`-Hex-Stream (6-Farben, 2 Nibbles/Byte) | Server → FW | Parser erzeugt valides Bild; Größe/Format stabil (TC-D01) |
 | Header `X-Photo-Url` | Server → FW | NFC-Deep-Link; **FW liest den Header aktuell noch nicht** – Feature-Pending |
 | Header `batteryCap` (mV) | FW → Server | FW sendet reale Spannung; Server-Log zeigt korrekten % (TC-SL03) |
 | `GET /sleep` → `sleep_duration` | Server → FW | FW schläft exakt so lange; Weck am `next_wakeup` (TC-SL01/02) |
