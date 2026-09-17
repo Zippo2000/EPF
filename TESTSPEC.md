@@ -127,7 +127,7 @@ immich:
 ### A. Unit-Tests (Kategorie U)
 
 #### TC-U01 · `deepcopy` isoliert `current_config` von `DEFAULT_CONFIG`
-🔴 P0 · commit `c6ac86e` · ✅
+🔴 P0 · commit `11e51c2` · ✅
 
 - **Voraussetzung:** Modul `app` geladen.
 - **Schritte:**
@@ -139,7 +139,7 @@ immich:
 - **Referenz:** ✅ (shallow → `…99.99`, deepcopy → `192.168.1.10`).
 
 #### TC-U02 · `load_config()` liefert niemals `None`
-🔴 P0 · commit `05de873` · ✅
+🔴 P0 · commit `d8133ed` · ✅
 
 | Fall | Eingabe | Erwartet |
 |---|---|---|
@@ -152,7 +152,7 @@ immich:
 - **Referenz:** ✅ (4/4).
 
 #### TC-U03 · „newest“-Ordering: Guard bei leerer verbleibender Menge
-🔴 P0 · commit `cac36d2` · ✅ (Mock `load_downloaded_images`)
+🔴 P0 · commit `7ce55f7` · ✅ (Mock `load_downloaded_images`)
 
 - **Voraussetzung:** `image_order = "newest"`.
 - **Szene:** alle Asset-IDs in `downloaded_images` → Filter-Menge = `[]`.
@@ -224,7 +224,7 @@ immich:
 - **Referenz:** ✅ (403 beobachtet).
 
 #### TC-API05 · `X-Photo-Url`-Header-Format
-🟠 P1 · commit `ca4287f` · ⚠️
+🟠 P1 · commit `eb4fac5` · ⚠️
 
 - **Schritt:** nach `/download` Header `X-Photo-Url` prüfen.
 - **Erwartet:** `https://my.immich.app/albums/{albumId}/photos/{assetId}` (Host `my.immich.app` ist hartkodierter Platzhalter in `app.py`, **nicht** die reale Immich-URL); IDs = Album/Asset des ausgewählten Fotos.
@@ -277,7 +277,7 @@ immich:
 ### D. Konfiguration & Persistenz (Kategorie C)
 
 #### TC-C01 · `docker-compose` verweigert Start ohne `IMMICH_API_KEY`
-🔴 P0 · commit `6e9d7c7` · ✅
+🔴 P0 · commit `00c9692` · ✅
 
 - **Schritt:** `docker compose up` **ohne** `.env`/Key.
 - **Erwartet:** Interpolations-Fehler `required variable IMMICH_API_KEY is missing`; Container startet **nicht**.
@@ -285,14 +285,14 @@ immich:
 - **Referenz:** ✅ (beobachtet).
 
 #### TC-C02 · Persistenz `config.yaml` über Container-Erneuerung
-🔴 P0 · commit `6e9d7c7` · ✅
+🔴 P0 · commit `00c9692` · ✅
 
 - **Schritte:** 1) `/setting`-Wert ändern + speichern; 2) `docker compose up -d --force-recreate`; 3) `/config/config.yaml` lesen.
 - **Erwartet:** Einstellung **überlebt** (bind-mount); negativ: ohne Mount Rückfall zu Defaults.
 - **Pass:** Wert nach Recreation == gesetzter Wert.
 
 #### TC-C03 · Persistenz `tracking.txt` (Foto-Historie)
-🟠 P1 · commit `6e9d7c7` · ✅
+🟠 P1 · commit `00c9692` · ✅
 
 - **Schritt:** wie C02, prüfe `/photos/tracking.txt`.
 - **Erwartet:** Album-Name + Historie erhalten (kein Reset).
@@ -306,7 +306,7 @@ immich:
 - **Pass:** Änderung ohne Neustart wirksam; kein Crash.
 
 #### TC-C05 · `.gitignore`-Abdeckung
-🟠 P1 · commit `602fe97` · ✅ (git)
+🟠 P1 · commit `7958175` · ✅ (git)
 
 - **Schritt:** `git status --porcelain` nach Anlegen von `.env`, `config/`, `photos/`, `__pycache__/`.
 - **Erwartet:** keiner davon erscheint als zu-commiten.
@@ -325,7 +325,7 @@ immich:
 - **Pass:** 200; kein `UndefinedError` (`battery_voltage`/`battery_percentage` immer im Kontext).
 
 #### TC-S02 · Ungültige Rotation → kontrollierter Fehler, kein 500
-🔴 P0 · commit `9c01295` · ✅
+🔴 P0 · commit `2cb2598` · ✅
 
 - **Schritt:** `POST /setting` mit `rotation=45`.
 - **Erwartet:** **200** mit „Rotation must be 0, 90, 180, or 270 degrees“; Batterie-Meter sichtbar.
@@ -334,7 +334,7 @@ immich:
 - **Referenz:** ✅ (200, kein Traceback).
 
 #### TC-S03 · Save-Exception-Pfad rendert (kein 500)
-🟠 P1 · commit `9c01295` · ⚠️ (read-only Mount)
+🟠 P1 · commit `2cb2598` · ⚠️ (read-only Mount)
 
 - **Schritt:** `/config` read-only; `POST /setting` (gültige Werte).
 - **Erwartet:** Schreib-Exception → renderndes „Error saving configuration: …“ mit Batterie; 200.
@@ -504,14 +504,14 @@ Der Server↔Firmware-Contract, den die Firmware-Seite abdecken muss:
 
 | # | Änderung (Commit) | Primär-TC | Sekundär-TC |
 |---|---|---|---|
-| v3-API | Immich-v3 + NFC (`ca4287f`) | TC-API02, TC-D01, TC-API05 | TC-API01/03/04, TC-N01/N02/N05 |
-| 1 | `deepcopy` (`c6ac86e`) | TC-U01 | TC-C02 (Reset korrekte Defaults) |
-| 2 | `docker-compose.yml` + `.env.example` (`6e9d7c7`) | TC-C01, TC-C02, TC-C03 | TC-U06 (TZ) |
-| 3 | README Env-Namen (`d0bba80`) | (Doku) | TC-C01 |
-| 4 | `.gitignore` (`602fe97`) | TC-C05 | — |
-| 5 | `battery_*` in Fehlerpfaden (`9c01295`) | TC-S02, TC-S01 | TC-S03 |
-| 6 | „newest“-Guard (`cac36d2`) | TC-U03 | TC-U04 (Regression), TC-D01 |
-| 7 | `load_config()` None-Guard (`05de873`) | TC-U02 | TC-N06, TC-N08 |
+| v3-API | Immich-v3 + NFC (`eb4fac5`) | TC-API02, TC-D01, TC-API05 | TC-API01/03/04, TC-N01/N02/N05 |
+| 1 | `deepcopy` (`11e51c2`) | TC-U01 | TC-C02 (Reset korrekte Defaults) |
+| 2 | `docker-compose.yml` + `.env.example` (`00c9692`) | TC-C01, TC-C02, TC-C03 | TC-U06 (TZ) |
+| 3 | README Env-Namen (`8a39576`) | (Doku) | TC-C01 |
+| 4 | `.gitignore` (`7958175`) | TC-C05 | — |
+| 5 | `battery_*` in Fehlerpfaden (`2cb2598`) | TC-S02, TC-S01 | TC-S03 |
+| 6 | „newest“-Guard (`7ce55f7`) | TC-U03 | TC-U04 (Regression), TC-D01 |
+| 7 | `load_config()` None-Guard (`d8133ed`) | TC-U02 | TC-N06, TC-N08 |
 
 ## Anhang B – Beobachtete Referenzergebnisse (Live, 2026-09-13)
 
